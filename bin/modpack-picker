@@ -1,0 +1,90 @@
+#!/bin/bash
+# Modpack Picker: a gamepad-first Minecraft modpack installer, custom pack
+# builder and game chooser for Prism Launcher.
+#   modpack-picker        full app (browse, build your own, library, settings)
+#   modpack-picker play   big-tile "Choose a game" screen
+
+# Steam's Flatpak runs added shortcuts inside its own sandbox, which has no
+# usable cert store or controller access. Hop out to the host when possible.
+if [ -f /.flatpak-info ] && command -v hrun >/dev/null; then
+    exec hrun "$0" "$@"
+fi
+source "${MODPACK_PICKER_DIR:-$HOME/.local/share/modpack-picker}/common.sh"
+PORT="${MODPACK_PICKER_PORT:-47823}"
+
+# Pick a Chromium-based browser for the kiosk window. Override with
+# MODPACK_PICKER_BROWSER (a Flatpak app id or a command on PATH).
+browser_cmd() {
+    local want="${MODPACK_PICKER_BROWSER:-}" id
+    local flatpaks=(org.anatase.Browser org.chromium.Chromium com.google.Chrome com.brave.Browser)
+    local hosts=(chromium-browser chromium google-chrome-stable google-chrome brave-browser)
+    [ -n "$want" ] && { flatpaks=("$want"); hosts=("$want"); }
+    for id in "${flatpaks[@]}"; do
+        if flatpak info "$id" >/dev/null 2>&1; then
+            local cmd=()
+            [ "$id" = org.anatase.Browser ] && cmd=(--command=chromium-browser)
+            BROWSER=(flatpak run --filesystem=/run/udev:ro "${cmd[@]}" "$id")
+            PROFILE="$HOME/.var/app/$id/data/modpack-picker-profile"
+            return 0
+        fi
+    done
+    for id in "${hosts[@]}"; do
+        if command -v "$id" >/dev/null; then
+            BROWSER=("$id")
+            PROFILE="$PICKER_DIR/browser-profile"
+            return 0
+        fi
+    done
+    return 1
+}
+
+if ! browser_cmd; then
+    echo "modpack-picker: no Chromium-based browser found (install org.chromium.Chromium)" >&2
+    exit 1
+fi
+
+# run_ui MODE RESULTFILE: show the app until it quits or a game is chosen.
+run_ui() {
+    local query=""
+    [ "$1" = play ] && query="?mode=play"
+
+    # Stop a leftover copy still holding the port.
+    pkill -f "modpack-picker/server.py" 2>/dev/null && sleep 0.5
+
+    PICKER_RESULT="$2" python3 -I "$PICKER_DIR/server.py" "$PORT" &
+    local srv=$!
+    for _ in $(seq 50); do
+        (exec 3<>"/dev/tcp/127.0.0.1/$PORT") 2>/dev/null && break
+        sleep 0.1
+    done
+
+    mkdir -p "$PROFILE"
+    "${BROWSER[@]}" --user-data-dir="$PROFILE" --app="http://127.0.0.1:$PORT/$query" --kiosk \
+        --no-first-run --no-default-browser-check --noerrdialogs --disable-translate \
+        --password-store=basic --class=modpack-picker &
+    local br=$!
+
+    wait -n "$srv" "$br"
+    # Killing the flatpak wrapper doesn't close Chromium inside the sandbox, so
+    # close the processes using this app's own profile (your normal browser is left alone).
+    kill "$srv" 2>/dev/null
+    pkill -TERM -f -- "--user-data-dir=$PROFILE" 2>/dev/null
+    for _ in $(seq 30); do pgrep -f -- "--user-data-dir=$PROFILE" >/dev/null || break; sleep 0.1; done
+    pkill -KILL -f -- "--user-data-dir=$PROFILE" 2>/dev/null
+    kill "$br" 2>/dev/null
+    wait 2>/dev/null
+}
+
+mode="$1"
+while :; do
+    result=$(mktemp)
+    run_ui "$mode" "$result"
+    chosen=$(head -n1 "$result" 2>/dev/null)
+    rm -f "$result"
+    valid_instance "$chosen" || exit 0
+
+    # Run the game in the foreground so Steam keeps tracking it.
+    launch_game "$chosen"
+    [ "$(setting after_game steam)" = list ] || exit 0
+    mode=play
+done

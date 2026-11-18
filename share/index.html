@@ -1,0 +1,822 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Modpack Picker</title>
+<style>
+:root{
+  --bg:#0f1115; --panel:#181b22; --panel2:#20242d; --text:#eef0f4; --muted:#9aa3b2;
+  --accent:#3ddc84; --accent-ink:#06210f; --focus:#ffffff; --danger:#ff6b6b; --star:#ffd166;
+  --r:14px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--text);
+  font:20px/1.35 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;overflow:hidden;user-select:none;cursor:default}
+button{font:inherit;color:inherit;border:0;background:none}
+.f{outline:none;transition:transform .08s, box-shadow .08s}
+.f:focus{box-shadow:0 0 0 4px var(--focus);transform:scale(1.02);z-index:1}
+#app{display:flex;flex-direction:column;height:calc(100vh / var(--z,1))}
+header{display:flex;align-items:center;gap:12px;padding:16px 28px;background:var(--panel)}
+.tab{padding:10px 22px;border-radius:999px;font-weight:600;color:var(--muted)}
+.tab.on{background:var(--panel2);color:var(--text)}
+.hint-badge{font-size:14px;padding:2px 8px;border-radius:6px;background:var(--panel2);color:var(--muted)}
+header .spacer{flex:1}
+.quit{padding:10px 18px;border-radius:999px;background:var(--panel2)}
+main{flex:1;overflow-y:auto;padding:24px 28px 40px;scroll-behavior:smooth}
+footer{display:flex;gap:26px;padding:12px 28px;background:var(--panel);color:var(--muted);font-size:17px}
+.btn-glyph{display:inline-grid;place-items:center;width:28px;height:28px;border-radius:50%;
+  background:var(--panel2);color:var(--text);font-weight:700;font-size:15px;margin-right:6px}
+.page{display:none}.page.on{display:block}
+.search{display:flex;align-items:center;gap:14px;width:100%;padding:16px 20px;border-radius:var(--r);
+  background:var(--panel);color:var(--muted);text-align:left;margin-bottom:22px}
+.search b{color:var(--text);font-weight:500}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:18px}
+.card{display:flex;flex-direction:column;gap:10px;padding:16px;border-radius:var(--r);background:var(--panel);text-align:left;min-height:220px}
+.card img,.ph{width:72px;height:72px;border-radius:12px;background:var(--panel2);object-fit:cover}
+.card h3{margin:0;font-size:20px}
+.card p{margin:0;color:var(--muted);font-size:16px;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.card .meta{margin-top:auto;font-size:14px;color:var(--muted)}
+.more{display:grid;place-items:center;color:var(--muted)}
+.list{display:flex;flex-direction:column;gap:12px}
+.row{display:flex;align-items:center;gap:16px;padding:14px 18px;border-radius:var(--r);background:var(--panel)}
+.row .grow{flex:1;min-width:0}
+.row h3{margin:0;font-size:20px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row small{color:var(--muted)}
+.row img,.row .ph{width:56px;height:56px}
+.pill{padding:10px 20px;border-radius:999px;background:var(--panel2);font-weight:600;white-space:nowrap}
+.pill.primary{background:var(--accent);color:var(--accent-ink)}
+.star{color:var(--star)}
+.empty{padding:40px;text-align:center;color:var(--muted);background:var(--panel);border-radius:var(--r)}
+.empty code{color:var(--text)}
+/* overlays */
+.layer{position:fixed;inset:0;background:rgba(5,6,9,.82);display:none;align-items:center;justify-content:center;padding:24px;z-index:10}
+.layer.on{display:flex}
+.sheet{background:var(--panel);border-radius:18px;width:min(1100px,100%);max-height:100%;overflow-y:auto;padding:26px}
+.detail-head{display:flex;gap:20px;align-items:center;margin-bottom:12px}
+.detail-head img,.detail-head .ph{width:96px;height:96px;border-radius:16px}
+.detail-head h2{margin:0 0 6px}
+.detail-head p{margin:0;color:var(--muted)}
+.vers{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:10px;margin:16px 0}
+.ver{padding:12px 16px;border-radius:12px;background:var(--panel2);text-align:left}
+.ver.sel{background:var(--accent);color:var(--accent-ink)}
+.ver small{opacity:.75;display:block}
+.actions{display:flex;gap:14px;flex-wrap:wrap;margin-top:8px}
+.toggle .box{display:inline-block;width:22px;height:22px;border-radius:6px;border:2px solid currentColor;margin-right:8px;vertical-align:-4px}
+.toggle.on .box{background:var(--accent);border-color:var(--accent)}
+.bar{height:16px;background:var(--panel2);border-radius:999px;overflow:hidden;margin:18px 0}
+.bar div{height:100%;background:var(--accent);width:0;transition:width .3s}
+.notes{color:var(--muted);font-size:17px}
+.err{color:var(--danger)}
+/* keyboard */
+.kb-text{font-size:28px;padding:14px 18px;background:var(--panel2);border-radius:12px;min-height:64px;margin-bottom:16px;word-break:break-all}
+.kb-text::after{content:"▏";color:var(--accent);animation:blink 1s steps(1) infinite}
+@keyframes blink{50%{opacity:0}}
+.kb{display:grid;grid-template-columns:repeat(10,1fr);gap:8px}
+.key{padding:14px 0;border-radius:10px;background:var(--panel2);font-size:22px;font-weight:600}
+.key.wide2{grid-column:span 2}.key.wide3{grid-column:span 3}.key.wide4{grid-column:span 4}
+.key.go{background:var(--accent);color:var(--accent-ink)}
+/* play mode (opened from the Minecraft shortcut) */
+.ptitle{display:none;font-size:24px;font-weight:700}
+body.mode-play .ptitle{display:block}
+body.mode-play header .tab, body.mode-play header .hint-badge, body.mode-play .full-only{display:none}
+body:not(.mode-play) #moreBtn2, body:not(.mode-play) .play-only{display:none}
+.tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:20px}
+.tile{display:flex;flex-direction:column;align-items:center;gap:12px;padding:26px 18px 22px;border-radius:18px;background:var(--panel);text-align:center;min-height:260px}
+.tile img,.tile .ph{width:120px;height:120px;border-radius:20px}
+.tile .ph{display:grid;place-items:center;font-size:56px}
+.tile h3{margin:0;font-size:22px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.tile small{color:var(--muted);font-size:16px}
+.tile:focus{background:var(--panel2)}
+.tile.add{color:var(--muted);justify-content:center}
+.toast{position:fixed;left:50%;bottom:70px;transform:translateX(-50%);background:var(--panel2);padding:12px 22px;border-radius:999px;opacity:0;transition:opacity .2s;z-index:20}
+.toast.on{opacity:1}
+
+/* ================= blocky theme ================= */
+@font-face{font-family:"Pixel";src:url("/fonts/pixel.ttf") format("truetype");font-weight:400 700}
+:root{--bg:#1b1410;--panel:rgba(0,0,0,.55);--panel2:#7a7a7a;--text:#fff;--muted:#bdbdbd;
+  --accent:#5d9e2f;--accent-ink:#fff;--focus:#fff;--star:#ffff55;--danger:#ff5555;--r:0}
+html,body{font-family:"Pixel",monospace;font-size:21px;letter-spacing:.5px;image-rendering:pixelated;
+  text-shadow:2px 2px 0 #3a3a3a}
+body{background:#1b1410 var(--dirt) repeat;background-size:96px 96px}
+body::before{content:"";position:fixed;inset:0;pointer-events:none;
+  background:radial-gradient(ellipse at 50% 40%,rgba(0,0,0,.15),rgba(0,0,0,.7));z-index:0}
+#app{position:relative;z-index:1}
+header,footer{background:rgba(0,0,0,.6);border-bottom:4px solid #000;box-shadow:0 4px 0 rgba(255,255,255,.06)}
+footer{border-top:4px solid #000;border-bottom:0}
+.btn-glyph{border-radius:0;background:#3a3a3a;border:2px solid #000;box-shadow:inset -2px -2px 0 #222,inset 2px 2px 0 #666;text-shadow:none}
+.hint-badge{border-radius:0;background:#3a3a3a;border:2px solid #000;color:#ddd;text-shadow:none}
+/* stone buttons */
+.pill,.quit,.tab,.key,.ver,.search{border-radius:0!important;background:#6f6f6f var(--stone);background-size:64px 64px;
+  border:3px solid #000;box-shadow:inset 3px 3px 0 rgba(255,255,255,.35),inset -3px -4px 0 rgba(0,0,0,.45);
+  color:#e8e8e8;text-shadow:2px 2px 0 #383838;font-weight:400}
+.pill.primary,.key.go,.ver.sel{background-color:#4f8a2a;background-image:var(--grass);color:#fff}
+.tab{color:#aaa;padding:8px 18px}
+.tab.on{color:#ffff88;background-color:#8a8a8a}
+.search{color:#bbb}.search b{color:#fff}
+.f:focus{box-shadow:inset 3px 3px 0 rgba(255,255,255,.35),inset -3px -4px 0 rgba(0,0,0,.45),0 0 0 3px #fff;transform:none;color:#ffffa0}
+/* slot-style panels */
+.card,.row,.tile,.empty,.sheet{border-radius:0!important;background:rgba(0,0,0,.6);border:3px solid #000;
+  box-shadow:inset 3px 3px 0 rgba(0,0,0,.6),inset -3px -3px 0 rgba(255,255,255,.12)}
+.sheet{background:#c6c6c6 none;color:#3f3f3f;text-shadow:none;border:4px solid #000;
+  box-shadow:inset 4px 4px 0 #fff,inset -4px -4px 0 #555}
+.sheet .notes,.sheet small,.sheet p{color:#555}
+.sheet h2,.sheet h3,.sheet b{color:#3f3f3f}
+.sheet .pill,.sheet .ver,.sheet .key{color:#e8e8e8}
+.sheet .ver b,.sheet .ver small{color:inherit;opacity:1}
+.kb-text{border-radius:0;background:#000;color:#fff;border:3px solid #a0a0a0;text-shadow:2px 2px 0 #333}
+.card img,.ph,.row img,.tile img,.detail-head img{border-radius:0!important;border:3px solid #000;image-rendering:pixelated}
+.ph{background:var(--blockicon) center/cover}
+.card:focus,.row:focus-within,.tile:focus{background:rgba(255,255,255,.12);box-shadow:inset 3px 3px 0 rgba(0,0,0,.6),0 0 0 4px #fff}
+.tile:focus{transform:translateY(-4px)}
+.tile:focus img,.tile:focus .ph{animation:bob 1.2s ease-in-out infinite}
+@keyframes bob{50%{transform:translateY(-6px) rotate(-3deg)}}
+.tile .ph{font-size:0}
+.tile.add .ph{background:#3a3a3a;font-size:64px;color:#ddd;display:grid;place-items:center}
+.bar{border-radius:0;height:22px;background:#2b2b2b;border:3px solid #000}
+.bar div{background:repeating-linear-gradient(90deg,#80ff20 0 18px,#5ec417 18px 22px);box-shadow:inset 0 -4px 0 rgba(0,0,0,.25)}
+.toast{border-radius:0;background:#000c;border:3px solid #555}
+.star{color:#ffff55}
+/* title + splash */
+.ptitle{font-size:34px;font-weight:700;color:#fff;text-shadow:3px 3px 0 #3f3f3f;letter-spacing:2px;position:relative}
+.splash{position:absolute;left:100%;top:8px;margin-left:16px;white-space:nowrap;color:#ffff00;font-size:18px;
+  text-shadow:2px 2px 0 #3f3f00;transform:rotate(-14deg);animation:splash .5s ease-in-out infinite alternate;font-weight:400}
+@keyframes splash{to{transform:rotate(-14deg) scale(1.1)}}
+body.mode-play main{padding-top:36px}
+.tiles{gap:22px}
+/* ================= v2 additions ================= */
+.toolbar{display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap;align-items:stretch}
+.toolbar .search{flex:1;min-width:280px;margin:0}
+.toolbar .pill{display:flex;align-items:center}
+.target{display:flex;align-items:center;gap:14px;width:100%;padding:12px 18px;margin-bottom:14px;text-align:left}
+.target .grow{flex:1;min-width:0}
+.target small{color:#ccc;display:block}
+.badge{display:inline-block;padding:2px 8px;font-size:14px;background:#4f8a2a;border:2px solid #000;color:#fff;text-shadow:none;vertical-align:2px}
+.badge[hidden]{display:none}
+.badge.grey{background:#555}
+.badge.gold{background:#a07a10}
+.card .badge{align-self:flex-start}
+.card.added{outline:3px solid #5ec417;outline-offset:-6px}
+.pill.sm{padding:6px 14px;font-size:17px}
+.pill.danger{background-color:#8a2b2b;background-image:none}
+.row.off{opacity:.55}
+.row .acts{display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+.sheet .row{background:rgba(0,0,0,.08);border-color:#555;box-shadow:none}
+.sheet .row h3{color:#3f3f3f}
+.sheet .row .ph,.sheet .row img{width:44px;height:44px}
+.stats{display:flex;gap:18px;flex-wrap:wrap;margin:6px 0 0;color:#555;font-size:17px}
+.setrow{display:flex;align-items:center;gap:18px;padding:16px 20px}
+.setrow .grow{flex:1}
+.setrow small{color:var(--muted);display:block}
+.setrow .pill{min-width:260px;text-align:center}
+.section-h{margin:26px 0 10px;font-size:20px;color:#ffff88}
+.sheet .section-h{color:#3f3f3f}
+.kb .key.shift.on{background-color:#4f8a2a;background-image:var(--grass)}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <span class="ptitle">CHOOSE A GAME<span class="splash" id="splash"></span></span>
+    <span class="hint-badge">LB</span>
+    <button class="tab on" data-tab="browse">Modpacks</button>
+    <button class="tab" data-tab="mods">Build Your Own</button>
+    <button class="tab" data-tab="files">My Files</button>
+    <button class="tab" data-tab="library">Library</button>
+    <button class="tab" data-tab="settings">Settings</button>
+    <span class="hint-badge">RB</span>
+    <span class="spacer"></span>
+    <button class="quit f" id="moreBtn2" data-act="leavePlay">Get more games</button>
+    <button class="quit f" data-act="quit">Quit</button>
+  </header>
+  <main id="main">
+    <section class="page on" id="p-browse">
+      <div class="toolbar">
+        <button class="search f" data-act="searchKb" data-kind="modpack">🔍 <span id="label-modpack">Search Modrinth modpacks...</span></button>
+        <button class="pill f" data-act="cycleSort" data-kind="modpack" id="sort-modpack">Sort</button>
+        <button class="pill f" data-act="cycleLoader" id="loader-modpack">Loader</button>
+      </div>
+      <div class="grid" id="results-modpack"></div>
+    </section>
+    <section class="page" id="p-mods">
+      <div id="modsHead"></div>
+      <div class="grid" id="results-mod"></div>
+    </section>
+    <section class="page" id="p-files"><div class="list" id="files"></div></section>
+    <section class="page" id="p-play"><div class="tiles" id="tiles"></div></section>
+    <section class="page" id="p-library"><div class="list" id="library"></div></section>
+    <section class="page" id="p-settings"><div class="list" id="settings"></div></section>
+  </main>
+  <footer>
+    <span class="play-only"><span class="btn-glyph">A</span>Play</span>
+    <span class="play-only"><span class="btn-glyph">X</span>Options</span>
+    <span class="play-only"><span class="btn-glyph">Y</span>Get more games</span>
+    <span class="play-only"><span class="btn-glyph">B</span>Quit</span>
+    <span class="full-only"><span class="btn-glyph">A</span>Select</span>
+    <span class="full-only"><span class="btn-glyph">B</span>Back</span>
+    <span class="full-only"><span class="btn-glyph">X</span>Search</span>
+    <span class="full-only"><span class="btn-glyph">Y</span>Refresh</span>
+    <span class="full-only">LB / RB  Switch tab</span>
+  </footer>
+</div>
+
+<div class="layer" id="l-detail"><div class="sheet" id="detail"></div></div>
+<div class="layer" id="l-manage"><div class="sheet" id="manage"></div></div>
+<div class="layer" id="l-pick"><div class="sheet" id="pick"></div></div>
+<div class="layer" id="l-confirm"><div class="sheet" id="confirm" style="width:min(760px,100%)"></div></div>
+<div class="layer" id="l-job"><div class="sheet" id="job"></div></div>
+<div class="layer" id="l-kb"><div class="sheet">
+  <div class="kb-text" id="kbText"></div>
+  <div class="kb" id="kb"></div>
+</div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* procedurally generated pixel textures (no external art) */
+(function(){
+  function tile(paint){ const c=document.createElement("canvas"); c.width=c.height=16; const g=c.getContext("2d"); paint(g); return `url(${c.toDataURL()})`; }
+  let seed=7; const rnd=()=>(seed=(seed*16807)%2147483647)/2147483647;
+  const px=(g,x,y,col)=>{g.fillStyle=col;g.fillRect(x,y,1,1)};
+  const pick=a=>a[Math.floor(rnd()*a.length)];
+  const dirt=tile(g=>{for(let y=0;y<16;y++)for(let x=0;x<16;x++)px(g,x,y,pick(["#3b2a1d","#432f20","#33241a","#4a3423","#2c1f15","#3f2c1e"]))});
+  const stone=tile(g=>{for(let y=0;y<16;y++)for(let x=0;x<16;x++)px(g,x,y,pick(["#6f6f6f","#757575","#696969","#7b7b7b","#666","#727272"]))});
+  const grass=tile(g=>{for(let y=0;y<16;y++)for(let x=0;x<16;x++)px(g,x,y,pick(["#4f8a2a","#56932e","#487f26","#5c9a33","#4a8428"]))});
+  const block=tile(g=>{for(let y=0;y<16;y++)for(let x=0;x<16;x++){
+      const top = y<4 || (y<6 && rnd()<.5);
+      px(g,x,y, top ? pick(["#5fa437","#6ab43e","#55962f","#4d8a2a"]) : pick(["#7a5434","#86603c","#6c4a2e","#5f4128","#8f6a45"]));}});
+  const r=document.documentElement.style;
+  r.setProperty("--dirt",dirt); r.setProperty("--stone",stone); r.setProperty("--grass",grass); r.setProperty("--blockicon",block);
+})();
+</script>
+<script>
+"use strict";
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const enc = encodeURIComponent;
+const fmt = n => n >= 1e6 ? (n/1e6).toFixed(1)+"M" : n >= 1e3 ? Math.round(n/1e3)+"k" : String(n);
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const LOADING = `<div class="empty" style="grid-column:1/-1">Loading...</div>`;
+const TABS = ["browse","mods","files","library","settings"];
+let tab = "browse";
+let playMode = new URLSearchParams(location.search).get("mode")==="play";
+
+/* per-viewer conveniences (safe if storage is unavailable) */
+const store = {
+  get(k, d){ try{ const v=localStorage.getItem("mp-"+k); return v===null ? d : JSON.parse(v); }catch(e){ return d; } },
+  set(k, v){ try{ localStorage.setItem("mp-"+k, JSON.stringify(v)); }catch(e){} }
+};
+
+async function api(path, body){
+  const r = await fetch(path, body ? {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(body)} : {});
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || r.statusText);
+  return j;
+}
+function toast(msg){ const t=$("#toast"); t.textContent=msg; t.classList.add("on"); clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove("on"),2800); }
+const icon = (url, cls="") => url ? `<img src="${esc(url)}" alt="" class="${cls}" loading="lazy">` : `<div class="ph ${cls}"></div>`;
+const instIcon = i => i.icon && i.icon!=="default" ? icon("/icon/"+enc(i.icon)) : '<div class="ph"></div>';
+const loaderName = l => ({fabric:"Fabric", quilt:"Quilt", forge:"Forge", neoforge:"NeoForge"}[l] || l || "Vanilla");
+
+/* ---------- layers & focus ---------- */
+const layers = [];
+function openLayer(id){
+  const el=$("#"+id);
+  if (layers.length && layers[layers.length-1].el===el) return focusFirst();
+  el.classList.add("on"); layers.push({el, back:document.activeElement}); focusFirst();
+}
+function closeLayer(){ const l=layers.pop(); if(!l) return false; l.el.classList.remove("on"); if(l.back && document.body.contains(l.back) && l.back.offsetParent) l.back.focus(); else focusFirst(); return true; }
+function closeAll(){ while (layers.length) closeLayer(); }
+const topLayer = () => layers.length ? layers[layers.length-1].el.id : "";
+function scope(){ return layers.length ? layers[layers.length-1].el : document.getElementById("app"); }
+function focusables(){ return [...scope().querySelectorAll(".f")].filter(e => e.offsetParent !== null && !e.disabled); }
+function focusFirst(){ const f=focusables(); const pref=f.find(e=>e.dataset.autofocus) || (scope().id==="app" ? f.find(e=>!e.closest("header")) : null) || f[0]; if(pref) pref.focus({preventScroll:false}); }
+/* re-render a container and keep focus on the "same" control (matched by data-key) */
+function rerender(box, html){
+  const k = box.contains(document.activeElement) ? document.activeElement.dataset.key : null;
+  box.innerHTML = html;
+  const el = k && box.querySelector(`[data-key="${CSS.escape(k)}"]`);
+  if (el) el.focus({preventScroll:true}); else if (!scope().contains(document.activeElement) || !document.activeElement.offsetParent) focusFirst();
+}
+function move(dir){
+  const items = focusables(); const cur = document.activeElement;
+  if (!items.includes(cur)) return focusFirst();
+  const a = cur.getBoundingClientRect(), ax=a.left+a.width/2, ay=a.top+a.height/2;
+  let best=null, bestScore=Infinity;
+  for (const el of items){
+    if (el===cur) continue;
+    const b=el.getBoundingClientRect(), bx=b.left+b.width/2, by=b.top+b.height/2;
+    const dx=bx-ax, dy=by-ay;
+    let main, side;
+    if (dir==="left"){ if (b.right > a.left+2) continue; main=-dx; side=Math.abs(dy); }
+    if (dir==="right"){ if (b.left < a.right-2) continue; main=dx; side=Math.abs(dy); }
+    if (dir==="up"){ if (b.bottom > a.top+2) continue; main=-dy; side=Math.abs(dx); }
+    if (dir==="down"){ if (b.top < a.bottom-2) continue; main=dy; side=Math.abs(dx); }
+    const score = main + side*2.5;
+    if (score < bestScore){ bestScore=score; best=el; }
+  }
+  if (best){ best.focus({preventScroll:true}); best.scrollIntoView({block:"nearest", inline:"nearest"}); }
+}
+function activate(){ const el=document.activeElement; if (el && el.classList.contains("f")) el.click(); }
+function back(){
+  if (layers.length){
+    if (topLayer()==="l-job" && currentJob && currentJob.state==="running") return toast("Working... please wait");
+    closeLayer(); return;
+  }
+  if (playMode) return quit();
+  if (tab!=="browse") return setTab("browse");
+  toast("Press Quit (top right) to exit");
+}
+function switchTab(d){ if (layers.length || playMode) return; setTab(TABS[(TABS.indexOf(tab)+d+TABS.length)%TABS.length]); }
+function setTab(t){
+  tab=t; store.set("tab", t);
+  document.querySelectorAll(".tab").forEach(b=>b.classList.toggle("on", b.dataset.tab===t));
+  document.querySelectorAll(".page").forEach(p=>p.classList.toggle("on", p.id==="p-"+t));
+  $("#main").scrollTop=0;
+  ({files:loadFiles, library:loadLibrary, play:loadTiles, settings:loadSettings, mods:loadMods,
+    browse:()=>{ if (!$("#results-modpack").children.length) search("modpack"); else focusFirst(); }})[t]();
+}
+function refresh(){
+  if (layers.length) return;
+  if (playMode) return loadTiles();
+  if (tab==="browse") search("modpack"); else if (tab==="mods") loadMods(true); else setTab(tab);
+}
+
+/* ---------- action dispatcher: every button says what it does via data-act ---------- */
+const ACT = {};
+document.addEventListener("click", e => {
+  const b = e.target.closest("[data-act]"); if (!b) return;
+  const fn = ACT[b.dataset.act]; if (fn) fn(b.dataset, b);
+});
+
+/* ---------- search (modpacks + individual mods share one engine) ---------- */
+const SORTS = [["","Popular"],["relevance","Best match"],["follows","Most followed"],["newest","Newest"],["updated","Recently updated"]];
+const PACK_LOADERS = [["","Any loader"],["fabric","Fabric"],["neoforge","NeoForge"],["forge","Forge"],["quilt","Quilt"]];
+const S = {
+  modpack:{q:"", offset:0, total:0, sort:store.get("sort-modpack",""), loader:store.get("loader-modpack","")},
+  mod:{q:"", offset:0, total:0, sort:store.get("sort-mod","")}
+};
+function updateBars(){
+  for (const k of ["modpack","mod"]){
+    const st=S[k], label=$("#label-"+k), sort=$("#sort-"+k);
+    if (label) label.innerHTML = st.q ? `Search: <b>${esc(st.q)}</b>` : (k==="mod" ? "Search mods..." : "Search Modrinth modpacks...");
+    if (sort) sort.textContent = "Sort: " + SORTS.find(s=>s[0]===st.sort)[1];
+  }
+  $("#loader-modpack").textContent = PACK_LOADERS.find(l=>l[0]===S.modpack.loader)[1];
+}
+ACT.cycleSort = d => { const st=S[d.kind], i=SORTS.findIndex(s=>s[0]===st.sort); st.sort=SORTS[(i+1)%SORTS.length][0]; store.set("sort-"+d.kind, st.sort); search(d.kind, false, true); };
+ACT.cycleLoader = () => { const st=S.modpack, i=PACK_LOADERS.findIndex(l=>l[0]===st.loader); st.loader=PACK_LOADERS[(i+1)%PACK_LOADERS.length][0]; store.set("loader-modpack", st.loader); search("modpack", false, true); };
+ACT.searchKb = d => openKeyboard({value:S[d.kind].q, ok:"Search", onOk:v=>{ S[d.kind].q=v.trim(); search(d.kind); }});
+ACT.more = (d, el) => { const prev=el.previousElementSibling; search(d.kind, true).then(()=>{ (prev?.nextElementSibling||prev)?.focus(); }); };
+
+async function search(kind, more=false, keepFocus=false){
+  const st=S[kind], box=$("#results-"+kind);
+  updateBars();
+  if (kind==="mod" && !target) return;
+  if (!more){ st.offset=0; box.innerHTML=LOADING; }
+  let url=`/api/search?kind=${kind}&q=${enc(st.q)}&offset=${st.offset}&sort=${st.sort}`;
+  if (kind==="modpack" && st.loader) url += `&loader=${st.loader}`;
+  if (kind==="mod") url += `&loader=${enc(target.loader)}&mc=${enc(target.mc)}`;
+  try{
+    const r = await api(url);
+    st.total = r.total_hits; st.offset += r.hits.length;
+    const html = r.hits.map(h => `<button class="card f" data-act="openProject" data-kind="${kind}" data-pid="${esc(h.project_id)}" data-key="p-${esc(h.project_id)}">
+        ${icon(h.icon_url)}<h3>${esc(h.title)}</h3><p>${esc(h.description)}</p>
+        ${kind==="mod" ? `<span class="badge mod-state" data-pid="${esc(h.project_id)}" hidden></span>` : ""}
+        <div class="meta">⬇ ${fmt(h.downloads)} · ${esc((h.categories||[]).filter(c=>["fabric","forge","neoforge","quilt"].includes(c)).join(", ")||kind)}</div></button>`).join("");
+    box.querySelector(".more")?.remove();
+    if (!more) box.innerHTML = html || `<div class="empty" style="grid-column:1/-1">Nothing found. Try another search or sort.</div>`;
+    else box.insertAdjacentHTML("beforeend", html);
+    if (st.offset < st.total) box.insertAdjacentHTML("beforeend", `<button class="card more f" data-act="more" data-kind="${kind}">Load more...</button>`);
+    if (kind==="mod") markMods();
+    if (!more && !keepFocus && tab===(kind==="mod"?"mods":"browse") && !layers.length) focusFirst();
+  }catch(e){ box.innerHTML = `<div class="empty err" style="grid-column:1/-1">Couldn't reach Modrinth: ${esc(e.message)}<br>Check Wi-Fi, then press Y to retry.</div>`; }
+}
+
+/* ---------- project detail (modpack or mod) ---------- */
+let detail=null, selVer=0;
+ACT.openProject = d => openProject(d.pid, d.kind);
+async function openProject(pid, kind){
+  $("#detail").innerHTML = `<div class="empty">Loading...</div>`; openLayer("l-detail");
+  try{
+    detail = await api("/api/project?id="+enc(pid)); detail.kind = kind;
+    selVer = Math.max(0, detail.versions.findIndex(v=>v.type==="release"));
+    renderDetail(); focusFirst();
+  }catch(e){ $("#detail").innerHTML = `<div class="empty err">${esc(e.message)}</div><div class="actions"><button class="pill f" data-act="close">Back</button></div>`; focusFirst(); }
+}
+function renderDetail(){
+  const d=detail, cats = (d.categories||[]).slice(0,6).map(c=>`<span class="badge grey">${esc(c)}</span>`).join(" ");
+  const head = `<div class="detail-head">${icon(d.icon_url)}<div><h2>${esc(d.title)}</h2><p>${esc(d.description)}</p>
+      <div class="stats"><span>⬇ ${fmt(d.downloads)}</span>${d.updated?`<span>Updated ${esc(d.updated.slice(0,10))}</span>`:""}</div></div></div><div>${cats}</div>`;
+  if (d.kind==="mod"){
+    const state = modState(d.id);
+    const btn = !target ? `<button class="pill primary f" data-act="newCustom" data-autofocus="1">Start a custom pack first</button>`
+      : state==="added" ? `<button class="pill f" data-act="close" data-autofocus="1">✓ Already in ${esc(target.name)}</button>`
+      : state==="busy" ? `<button class="pill f" data-act="close" data-autofocus="1">Adding...</button>`
+      : `<button class="pill primary f" data-act="addMod" data-pid="${esc(d.id)}" data-title="${esc(d.title)}" data-autofocus="1">Add to ${esc(target.name)}</button>`;
+    $("#detail").innerHTML = head + `<div class="actions" style="margin-top:18px">${btn}<button class="pill f" data-act="close">Back</button></div>
+      <p class="notes">Picks the newest version for Minecraft ${esc(target?.mc||"?")} (${esc(loaderName(target?.loader))}). Required libraries are added automatically.</p>`;
+    return;
+  }
+  const vers = d.versions.map((v,i)=>`<button class="ver f ${i===selVer?"sel":""}" data-act="pickVer" data-i="${i}">
+     <b>${esc(v.number)}</b><small>MC ${esc(v.game_versions.join(", "))} · ${esc(v.loaders.join(", "))}${v.type!=="release"?" · "+esc(v.type):""}</small></button>`).join("");
+  $("#detail").innerHTML = head + `<div class="actions" style="margin-top:18px">
+      <button class="pill primary f" id="installBtn" data-act="installPack" data-autofocus="1">Install selected version</button>
+      <button class="pill f" data-act="close">Back</button></div>
+    <p class="notes">🎮 Controller support and ⚡ performance mods are added automatically.</p>
+    <h3 style="margin:22px 0 0">Versions</h3>
+    <div class="vers">${vers || '<div class="empty">No versions.</div>'}</div>`;
+}
+ACT.close = () => closeLayer();
+ACT.pickVer = d => { selVer=+d.i; document.querySelectorAll("#detail .ver").forEach((b,i)=>b.classList.toggle("sel", i===selVer)); $("#installBtn").focus(); $("#installBtn").scrollIntoView({block:"nearest"}); };
+ACT.installPack = () => { const v=detail.versions[selVer]; if (v) startJob("/api/install", {version_id:v.id, title:detail.title, icon_url:detail.icon_url}, "install"); };
+
+/* ---------- jobs (installs, updates) ---------- */
+let currentJob=null, jobKind="install", jobTimer=null;
+async function startJob(path, body, kind){
+  let j; try{ j = await api(path, body); }catch(e){ return toast("Failed: "+e.message); }
+  currentJob=j; jobKind=kind;
+  if (kind==="install") closeAll();
+  renderJob(); openLayer("l-job");
+  clearInterval(jobTimer);
+  jobTimer = setInterval(async ()=>{
+    try{ currentJob = await api("/api/job?id="+currentJob.id); }catch(e){ return; }
+    renderJob();
+    if (currentJob.state!=="running"){ clearInterval(jobTimer); focusFirst(); }
+  }, 700);
+}
+function renderJob(){
+  const j=currentJob, pct = j.total ? Math.round(100*j.done/j.total) : (j.state==="done"?100:0);
+  let body = `<h2 style="margin-top:0">${esc(j.title)}</h2>`;
+  if (j.state==="running") body += `<div>${esc(j.step)}${j.total?`: ${j.done} / ${j.total}`:""}</div><div class="bar"><div style="width:${pct}%"></div></div><div class="notes">Keep the device awake; this can take a few minutes.</div>`;
+  else if (j.state==="done"){
+    body += `<div>✅ ${jobKind==="update"?"Done.":"Installed."}</div><div class="bar"><div style="width:100%"></div></div>
+     <div class="notes">${j.notes.map(esc).join("<br>")}</div><div class="actions" style="margin-top:20px">`;
+    if (jobKind==="install") body += `<button class="pill primary f" data-autofocus="1" data-act="play" data-id="${esc(j.instance)}">Play now</button>
+       <button class="pill f" data-act="addModsTo" data-id="${esc(j.instance)}">Add more mods</button>
+       <button class="pill f" data-act="star" data-id="${esc(j.instance)}">★ Start from Minecraft shortcut</button>`;
+    body += `<button class="pill f" ${jobKind==="install"?"":'data-autofocus="1"'} data-act="jobDone">Done</button></div>`;
+  }
+  else body += `<div class="err">Failed: ${esc(j.error)}</div><div class="actions" style="margin-top:20px"><button class="pill f" data-autofocus="1" data-act="jobDone">Back</button></div>`;
+  const hadFocus = $("#job").contains(document.activeElement);
+  $("#job").innerHTML = body;
+  if (hadFocus) focusFirst();
+}
+ACT.jobDone = () => { closeLayer(); if (topLayer()==="l-manage") openManage(manageId); else if (tab==="library") loadLibrary(); };
+
+/* ---------- build your own: target pack + individual mods ---------- */
+let target = null, modInfo = new Map(), busyMods = new Set();   // modInfo: project_id -> "added"
+function modState(pid){ return busyMods.has(pid) ? "busy" : modInfo.has(pid) ? "added" : ""; }
+function markMods(){
+  document.querySelectorAll("#results-mod .card[data-pid]").forEach(c=>{
+    const st = modState(c.dataset.pid), b = c.querySelector(".mod-state");
+    c.classList.toggle("added", st==="added");
+    if (b){ b.hidden = !st; b.textContent = st==="added" ? "✓ In your pack" : "Adding..."; b.classList.toggle("gold", st==="busy"); }
+  });
+}
+async function refreshInstalled(){
+  modInfo = new Map();
+  if (!target) return;
+  try{ for (const m of await api("/api/instance/mods?id="+enc(target.id))) if (m.project_id) modInfo.set(m.project_id, m.enabled ? "added" : "off"); }catch(e){}
+  markMods();
+}
+async function loadMods(force){
+  const list = await api("/api/instances").catch(()=>[]);
+  const modable = list.filter(i=>i.loader);
+  const want = store.get("target", "");
+  const prevId = target?.id;
+  target = modable.find(i=>i.id===want) || modable.find(i=>i.default) || modable[0] || null;
+  const head = $("#modsHead");
+  if (!target){
+    head.innerHTML = `<div class="empty"><h2 style="margin-top:0">Make your own modpack</h2>
+      Pick a Minecraft version and a name, then add any mods you like from Modrinth.<br>Controller support and performance mods are always included.<br><br>
+      <button class="pill primary f" data-act="newCustom" data-autofocus="1">＋ Start a custom pack</button></div>`;
+    $("#results-mod").innerHTML = ""; focusFirst(); return;
+  }
+  head.innerHTML = `<button class="target search f" data-act="pickTarget">${instIcon(target)}
+      <span class="grow"><b>Adding mods to: ${esc(target.name)}</b><small>Minecraft ${esc(target.mc)} · ${esc(loaderName(target.loader))} · ${target.mods} mods · press A to switch pack</small></span></button>
+    <div class="toolbar">
+      <button class="search f" data-act="searchKb" data-kind="mod">🔍 <span id="label-mod">Search mods...</span></button>
+      <button class="pill f" data-act="cycleSort" data-kind="mod" id="sort-mod">Sort</button>
+      <button class="pill f" data-act="manage" data-id="${esc(target.id)}">Manage mods</button>
+      <button class="pill f" data-act="newCustom">＋ New pack</button>
+    </div>`;
+  await refreshInstalled();
+  if (force || prevId!==target.id || !$("#results-mod").children.length) search("mod");
+  else { updateBars(); focusFirst(); }
+}
+ACT.pickTarget = async () => {
+  const list = (await api("/api/instances")).filter(i=>i.loader);
+  $("#pick").innerHTML = `<h2 style="margin-top:0">Add mods to which game?</h2><div class="list">` + list.map(i=>`
+      <button class="row f" style="text-align:left" data-act="setTarget" data-id="${esc(i.id)}" ${i.id===target?.id?'data-autofocus="1"':""}>${instIcon(i)}
+        <span class="grow"><h3>${i.id===target?.id?"▶ ":""}${esc(i.name)}</h3><small>Minecraft ${esc(i.mc)} · ${esc(loaderName(i.loader))} · ${i.mods} mods</small></span></button>`).join("")
+    + `</div><div class="actions" style="margin-top:18px"><button class="pill primary f" data-act="newCustom">＋ New custom pack</button><button class="pill f" data-act="close">Back</button></div>`;
+  openLayer("l-pick");
+};
+ACT.setTarget = d => { store.set("target", d.id); closeAll(); loadMods(); };
+ACT.addModsTo = d => { store.set("target", d.id); closeAll(); if (playMode) leavePlayMode("mods"); else setTab("mods"); };
+ACT.addMod = (d) => { closeLayer(); addMod(d.pid, d.title); };
+async function addMod(pid, title){
+  if (!target || busyMods.has(pid)) return;
+  busyMods.add(pid); markMods(); toast(`Adding ${title}...`);
+  let j;
+  try{
+    j = await api("/api/instance/mods/add", {id:target.id, project:pid, title});
+    while (j.state==="running"){ await sleep(700); j = await api("/api/job?id="+j.id).catch(()=>j); }
+  }catch(e){ j = {state:"error", error:e.message}; }
+  busyMods.delete(pid);
+  if (j.state==="done"){ toast(`✓ ${title} added`); target.mods++; } else toast(`${title}: ${j.error}`);
+  await refreshInstalled();
+}
+
+/* custom pack: name -> version -> install */
+ACT.newCustom = () => openKeyboard({value:"My Pack", ok:"Next", title:"Name your pack", onOk:v=>chooseVersion(v.trim() || "My Pack")});
+async function chooseVersion(name){
+  $("#detail").innerHTML = `<div class="empty">Loading versions...</div>`; openLayer("l-detail");
+  try{
+    const vs = await api("/api/mcversions");
+    $("#detail").innerHTML = `<h2 style="margin-top:0">${esc(name)}: pick a Minecraft version</h2>
+      <p class="notes">Uses Fabric, the loader with the most mods. Controller support and performance mods are installed for you, then you can add whatever you like.</p>
+      <div class="vers">${vs.map((v,i)=>`<button class="ver f" ${i===0?'data-autofocus="1"':""} data-act="createCustom" data-mc="${esc(v)}" data-name="${esc(name)}"><b>${esc(v)}</b>${i===0?"<small>newest</small>":""}</button>`).join("")}</div>
+      <div class="actions"><button class="pill f" data-act="close">Back</button></div>`;
+    focusFirst();
+  }catch(e){ $("#detail").innerHTML = `<div class="empty err">${esc(e.message)}</div><div class="actions"><button class="pill f" data-act="close">Back</button></div>`; focusFirst(); }
+}
+ACT.createCustom = d => startJob("/api/install", {plain:d.mc, name:d.name}, "install");
+
+/* ---------- manage one game ---------- */
+let manageId = null;
+const MEM = [3,4,6,8,10];
+ACT.manage = d => openManage(d.id);
+async function openManage(id){
+  manageId = id;
+  if (topLayer()!=="l-manage"){ $("#manage").innerHTML = `<div class="empty">Loading...</div>`; openLayer("l-manage"); }
+  let inst, mods=[];
+  try{
+    inst = (await api("/api/instances")).find(i=>i.id===id);
+    if (!inst){ closeLayer(); return toast("That game is gone"); }
+    if (inst.loader) mods = await api("/api/instance/mods?id="+enc(id));
+  }catch(e){ $("#manage").innerHTML = `<div class="empty err">${esc(e.message)}</div>`; return; }
+  const gb = inst.memory ? Math.round(inst.memory/1024) : 0;
+  const on = mods.filter(m=>m.enabled).length;
+  const rows = mods.map(m=>`<div class="row ${m.enabled?"":"off"}">${icon(m.icon_url)}
+      <div class="grow"><h3>${esc(m.title)} ${m.essential?'<span class="badge">essential</span>':""}</h3><small>${esc(m.version||m.file)}</small></div>
+      <div class="acts"><button class="pill sm f" data-act="toggleMod" data-file="${esc(m.file)}" data-key="t-${esc(m.title)}">${m.enabled?"On":"Off"}</button>
+      <button class="pill sm f" data-act="removeMod" data-file="${esc(m.file)}" data-title="${esc(m.title)}" data-ess="${m.essential?1:""}" data-key="r-${esc(m.title)}">Remove</button></div></div>`).join("");
+  rerender($("#manage"), `<div class="detail-head">${instIcon(inst)}<div><h2>${inst.default?'<span class="star">★</span> ':""}${esc(inst.name)}</h2>
+      <p>Minecraft ${esc(inst.mc||"?")} · ${esc(loaderName(inst.loader))}${inst.pack?` · from ${esc(inst.pack)}`:""}</p>
+      <div class="stats"><span>${on} mods on</span><span>${inst.worlds} world${inst.worlds===1?"":"s"}</span><span>${ago(inst.last)}${hours(inst.played)}</span></div></div></div>
+    <div class="actions">
+      <button class="pill primary f" data-act="play" data-id="${esc(id)}" data-autofocus="1" data-key="play">Play</button>
+      ${inst.loader?`<button class="pill f" data-act="addModsTo" data-id="${esc(id)}" data-key="add">＋ Add mods</button>
+      <button class="pill f" data-act="checkUpdates" data-key="upd">Check for updates</button>`:""}
+      ${inst.default?"":`<button class="pill f" data-act="star" data-id="${esc(id)}" data-key="star">★ Use for shortcut</button>`}
+      <button class="pill f" data-act="cycleMem" data-gb="${gb}" data-key="mem">Memory: ${gb?gb+" GB":"default"}</button>
+      <button class="pill f" data-act="rename" data-name="${esc(inst.name)}" data-key="ren">Rename</button>
+      <button class="pill f" data-act="duplicate" data-key="dup">Duplicate</button>
+      <button class="pill danger f" data-act="deleteInst" data-name="${esc(inst.name)}" data-key="del">Delete</button>
+      <button class="pill f" data-act="close" data-key="back">Back</button>
+    </div>
+    ${inst.loader ? `<h3 class="section-h">Mods (${mods.length})</h3><p class="notes">Turn a mod Off to test without deleting it. Mods that came with a pack were tested together, so updating or removing them can break things.</p><div class="list">${rows || '<div class="empty">No mods yet.</div>'}</div>`
+      : `<p class="notes">This is plain vanilla Minecraft, so it can't take mods.</p>`}`);
+  if (!$("#manage").contains(document.activeElement)) focusFirst();
+}
+ACT.toggleMod = async d => { try{ await api("/api/instance/mods/toggle", {id:manageId, file:d.file}); }catch(e){ toast(e.message); } openManage(manageId); };
+ACT.removeMod = d => confirmBox(`Remove ${d.title}?`, d.ess ? "This keeps the game playable with a controller or running smoothly. Removing it is not recommended." : "The file is deleted from this game. You can add it again any time.", "Remove", async ()=>{
+  try{ await api("/api/instance/mods/remove", {id:manageId, file:d.file}); toast(`Removed ${d.title}`); }catch(e){ toast(e.message); }
+  openManage(manageId);
+});
+ACT.checkUpdates = async () => {
+  toast("Checking for updates...");
+  let ups; try{ ups = await api("/api/instance/updates?id="+enc(manageId)); }catch(e){ return toast(e.message); }
+  if (!ups.length) return toast("✓ All mods are up to date");
+  confirmBox(`${ups.length} update${ups.length===1?"":"s"} available`, ups.slice(0,12).map(u=>`${u.file.replace(/\.jar(\.disabled)?$/,"")}: ${u.from} -> ${u.to}`).join("\n") + (ups.length>12?`\n...and ${ups.length-12} more`:""),
+    "Update all", ()=>startJob("/api/instance/mods/update", {id:manageId}, "update"));
+};
+ACT.cycleMem = async d => {
+  const cur=+d.gb, next = MEM[(MEM.indexOf(cur)+1) % MEM.length] || 4;
+  try{ await api("/api/instance/memory", {id:manageId, gb:next}); }catch(e){ return toast(e.message); }
+  openManage(manageId);
+};
+ACT.rename = d => openKeyboard({value:d.name, ok:"Rename", title:"New name", onOk: async v=>{
+  if (!v.trim()) return;
+  try{ await api("/api/instance/rename", {id:manageId, name:v.trim()}); toast("Renamed"); }catch(e){ toast(e.message); }
+  openManage(manageId); reloadBehind();
+}});
+ACT.duplicate = async () => {
+  try{ const r = await api("/api/instance/duplicate", {id:manageId}); toast("Copied. Find it in your library"); reloadBehind(); openManage(r.id); }
+  catch(e){ toast(e.message); }
+};
+ACT.deleteInst = d => confirmBox(`Delete ${d.name}?`, "It goes to the trash, so its worlds can still be recovered from the desktop.", "Delete", async ()=>{
+  try{ await api("/api/instance/delete", {id:manageId}); toast(`Deleted ${d.name}`); }catch(e){ return toast(e.message); }
+  closeAll(); target=null; reloadBehind();
+});
+function reloadBehind(){ if (playMode) loadTiles(); else if (tab==="library") loadLibrary(); else if (tab==="mods") loadMods(); }
+
+/* ---------- confirm box ---------- */
+let confirmFn = null;
+function confirmBox(title, text, yes, fn){
+  confirmFn = fn;
+  $("#confirm").innerHTML = `<h2 style="margin-top:0">${esc(title)}</h2><p class="notes" style="white-space:pre-line">${esc(text)}</p>
+    <div class="actions"><button class="pill ${yes==="Delete"||yes==="Remove"?"danger":"primary"} f" data-act="confirmYes">${esc(yes)}</button>
+    <button class="pill f" data-act="close" data-autofocus="1">Cancel</button></div>`;
+  openLayer("l-confirm");
+}
+ACT.confirmYes = () => { const fn=confirmFn; confirmFn=null; closeLayer(); if (fn) fn(); };
+
+/* ---------- files ---------- */
+async function loadFiles(){
+  const box=$("#files"); box.innerHTML=`<div class="empty">Looking for .mrpack files...</div>`;
+  try{
+    const files = await api("/api/local");
+    box.innerHTML = files.length ? files.map(f=>`<div class="row"><div class="ph"></div><div class="grow"><h3>${esc(f.name)}</h3>
+        <small>${esc(f.where)} · ${(f.size/1048576).toFixed(1)} MB · ${new Date(f.mtime*1000).toLocaleDateString()}</small></div>
+        <button class="pill primary f" data-act="installFile" data-path="${esc(f.path)}">Install</button></div>`).join("")
+      : `<div class="empty">No modpack files found.<br><br>Put your own <code>.mrpack</code> files in <code>~/Downloads</code> or <code>~/Modpacks</code>,<br>then press Y to refresh.<br><br>Or build one right here in the <b>Build Your Own</b> tab.</div>`;
+  }catch(e){ box.innerHTML=`<div class="empty err">${esc(e.message)}</div>`; }
+  focusFirst();
+}
+ACT.installFile = d => startJob("/api/install", {path:d.path}, "install");
+
+/* ---------- library ---------- */
+async function loadLibrary(){
+  const box=$("#library"); if (!box.children.length) box.innerHTML=`<div class="empty">Loading...</div>`;
+  try{
+    const list = (await api("/api/instances")).sort((a,b)=>(b.last-a.last) || a.name.localeCompare(b.name));
+    const top = `<div class="row"><div class="ph" style="display:grid;place-items:center;font-size:28px">＋</div>
+        <div class="grow"><h3>Make your own modpack</h3><small>Pick a version, then add any mods you want. Essentials included.</small></div>
+        <button class="pill primary f" data-act="newCustom" data-key="new">Start</button></div>`;
+    rerender(box, top + (list.length ? list.map(i=>`<div class="row">${instIcon(i)}
+        <div class="grow"><h3>${i.default?'<span class="star">★</span> ':""}${esc(i.name)}</h3>
+        <small>Minecraft ${esc(i.mc||"?")} · ${esc(loaderName(i.loader))} · ${i.mods} mods · ${i.worlds} world${i.worlds===1?"":"s"} · ${ago(i.last)}</small></div>
+        <button class="pill primary f" data-act="play" data-id="${esc(i.id)}" data-key="p-${esc(i.id)}">Play</button>
+        <button class="pill f" data-act="manage" data-id="${esc(i.id)}" data-key="m-${esc(i.id)}">Manage</button></div>`).join("")
+      : `<div class="empty">No games yet. Install a modpack, or make your own above.</div>`));
+  }catch(e){ box.innerHTML=`<div class="empty err">${esc(e.message)}</div>`; }
+  if (!layers.length && !box.contains(document.activeElement)) focusFirst();
+}
+ACT.star = async d => { try{ await api("/api/default",{id:d.id}); toast("The Minecraft shortcut now starts this game"); }catch(e){ return toast(e.message); } if (topLayer()==="l-manage") openManage(d.id); reloadBehind(); };
+ACT.play = d => play(d.id);
+async function play(id){ try{ await api("/api/play",{id}); document.body.innerHTML='<div class="empty" style="margin:30vh auto;width:60%">Starting Minecraft...</div>'; }catch(e){ toast(e.message); } }
+
+/* ---------- settings ---------- */
+const SETTINGS = [
+  {key:"shortcut", title:"Minecraft shortcut opens", opts:[["auto","Smart: one game starts, more shows the list"],["list","Always the game list"],["last","Last played game"],["starred","The ★ game"]]},
+  {key:"after_game", title:"After you quit Minecraft", opts:[["steam","Go back to Steam"],["list","Show the game list again"]]},
+  {key:"memory_gb", title:"Memory for new games", sub:"Big modpacks like 6 GB or more. Change per game under Manage.", opts:[[3,"3 GB"],[4,"4 GB"],[6,"6 GB"],[8,"8 GB"]]},
+];
+let settings = {};
+async function loadSettings(){
+  try{ settings = await api("/api/settings"); }catch(e){ $("#settings").innerHTML=`<div class="empty err">${esc(e.message)}</div>`; return; }
+  rerender($("#settings"), SETTINGS.map(s=>{
+    const cur = s.opts.find(o=>o[0]===settings[s.key]) || s.opts[0];
+    return `<div class="row setrow"><div class="grow"><h3>${esc(s.title)}</h3>${s.sub?`<small>${esc(s.sub)}</small>`:""}</div>
+      <button class="pill f" data-act="cycleSetting" data-k="${s.key}" data-key="s-${s.key}">${esc(cur[1])} ▸</button></div>`;
+  }).join("") + `<p class="notes" style="padding:8px 4px">Press A to change a setting. Changes save right away.<br>
+      Controller support (Controlify or MidnightControls) and performance mods (Sodium or Embeddium) are always added to new games.</p>`);
+  if (!box_has_focus("#settings")) focusFirst();
+}
+const box_has_focus = sel => $(sel).contains(document.activeElement);
+ACT.cycleSetting = async d => {
+  const s = SETTINGS.find(x=>x.key===d.k), i = s.opts.findIndex(o=>o[0]===settings[s.key]);
+  try{ settings = await api("/api/settings", {[s.key]: s.opts[(i+1)%s.opts.length][0]}); }catch(e){ return toast(e.message); }
+  loadSettings();
+};
+
+/* ---------- on-screen keyboard ---------- */
+let kb = {value:"", onOk:null, shift:false};
+const KEYS = "1234567890qwertyuiopasdfghjkl-zxcvbnm'.".split("");
+function openKeyboard(opts){
+  kb = {value:opts.value||"", onOk:opts.onOk, shift:false};
+  const ok = esc(opts.ok||"OK");
+  $("#kb").innerHTML = KEYS.map(k=>`<button class="key f" data-k="${esc(k)}">${esc(k)}</button>`).join("")
+    + `<button class="key f" data-k="⌫">⌫</button>`
+    + `<button class="key wide2 shift f" data-k="SHIFT">⇧ shift</button><button class="key wide3 f" data-k=" ">space</button><button class="key wide2 f" data-k="CLR">clear</button>`
+    + `<button class="key wide3 go f" data-k="OK">${ok}</button>`;
+  kbShow();
+  openLayer("l-kb");
+  $('#kb [data-k="q"]').focus();
+}
+function kbShow(){
+  $("#kbText").textContent = kb.value;
+  document.querySelectorAll("#kb .key").forEach(b=>{ const k=b.dataset.k; if (k.length===1 && /[a-z]/.test(k)) b.textContent = kb.shift ? k.toUpperCase() : k; });
+  $('#kb [data-k="SHIFT"]')?.classList.toggle("on", kb.shift);
+}
+function kbOk(){ const fn=kb.onOk, v=kb.value; closeLayer(); if (fn) fn(v); }
+$("#kb").addEventListener("click", e => {
+  const k=e.target.closest(".key")?.dataset.k; if (k===undefined) return;
+  if (k==="⌫") kb.value=kb.value.slice(0,-1);
+  else if (k==="CLR") kb.value="";
+  else if (k==="SHIFT") kb.shift=!kb.shift;
+  else if (k==="OK") return kbOk();
+  else { kb.value += kb.shift ? k.toUpperCase() : k; kb.shift=false; }
+  kbShow();
+});
+
+/* ---------- header ---------- */
+document.querySelectorAll(".tab").forEach(b=>b.addEventListener("click",()=>setTab(b.dataset.tab)));
+async function quit(){ try{ await api("/api/quit",{}); }catch(e){} document.body.innerHTML='<div class="empty" style="margin:30vh auto;width:60%">Closing...</div>'; }
+ACT.quit = quit;
+ACT.leavePlay = () => leavePlayMode();
+
+/* ---------- scale to screen (handheld screens are dense) ---------- */
+function fitScale(){ const z=Math.min(2.2, Math.max(1, Math.min(innerWidth/1100, innerHeight/640)));
+  document.documentElement.style.zoom=z; document.documentElement.style.setProperty("--z",z); }
+addEventListener("resize", fitScale); fitScale();
+
+/* ---------- buttons shared by keyboard + gamepad ---------- */
+function pressX(){
+  const top = topLayer();
+  if (top==="l-kb"){ kb.value=kb.value.slice(0,-1); kbShow(); return; }
+  if (layers.length) return;
+  if (playMode){ const t=document.activeElement?.closest?.(".tile"); if (t && t.dataset.id) openManage(t.dataset.id); return; }
+  if (tab==="browse") ACT.searchKb({kind:"modpack"});
+  else if (tab==="mods" && target) ACT.searchKb({kind:"mod"});
+}
+
+/* ---------- input: keyboard ---------- */
+document.addEventListener("keydown", e => {
+  const kbOpen = topLayer()==="l-kb";
+  if (kbOpen && e.key.length===1 && !e.ctrlKey){ kb.value+=e.key; kbShow(); e.preventDefault(); return; }
+  if (kbOpen && e.key==="Backspace"){ kb.value=kb.value.slice(0,-1); kbShow(); e.preventDefault(); return; }
+  if (kbOpen && e.key==="Enter" && !document.activeElement?.closest("#kb")){ kbOk(); e.preventDefault(); return; }
+  const map = {ArrowUp:()=>move("up"),ArrowDown:()=>move("down"),ArrowLeft:()=>move("left"),ArrowRight:()=>move("right"),
+               Enter:activate," ":activate,Escape:back,Backspace:back,q:()=>switchTab(-1),e:()=>switchTab(1),
+               PageUp:()=>switchTab(-1),PageDown:()=>switchTab(1),x:pressX,y:()=>playMode&&!layers.length?leavePlayMode():refresh()};
+  if (map[e.key]){ e.preventDefault(); map[e.key](); }
+});
+document.addEventListener("mousedown", e => { if (!e.target.closest(".f")) e.preventDefault(); });
+
+/* ---------- input: gamepad ---------- */
+const prev = {}; const held = {};
+const REPEAT_DELAY=380, REPEAT_RATE=95;
+function press(name, down, fn, repeat=false){
+  const now=performance.now();
+  if (down && !prev[name]){ fn(); held[name]=now+REPEAT_DELAY; }
+  else if (down && repeat && now>=held[name]){ fn(); held[name]=now+REPEAT_RATE; }
+  prev[name]=down;
+}
+function poll(){
+  for (const gp of navigator.getGamepads ? navigator.getGamepads() : []){
+    if (!gp) continue;
+    const b=i=>!!(gp.buttons[i] && gp.buttons[i].pressed);
+    const ax=gp.axes[0]||0, ay=gp.axes[1]||0, T=0.55;
+    press("up",    b(12)||ay<-T, ()=>move("up"), true);
+    press("down",  b(13)||ay> T, ()=>move("down"), true);
+    press("left",  b(14)||ax<-T, ()=>move("left"), true);
+    press("right", b(15)||ax> T, ()=>move("right"), true);
+    press("a", b(0), activate);
+    press("b", b(1), back);
+    press("x", b(2), pressX, true);
+    press("y", b(3), ()=>{ if (playMode && !layers.length) leavePlayMode(); else refresh(); });
+    press("lb", b(4), ()=>switchTab(-1));
+    press("rb", b(5), ()=>switchTab(1));
+    press("start", b(9), ()=>{ if (topLayer()==="l-kb") kbOk(); });
+    // right stick scrolls the page
+    const ry=gp.axes[3]||0; if (Math.abs(ry)>0.3) (layers.length?scope().querySelector(".sheet"):$("#main")).scrollBy(0, ry*22);
+    break;
+  }
+  requestAnimationFrame(poll);
+}
+requestAnimationFrame(poll);
+
+/* ---------- play mode ---------- */
+function ago(ms){
+  if (!ms) return "Never played";
+  const m = Math.round((Date.now()-ms)/60000);
+  if (m < 2) return "Played just now";
+  if (m < 60) return `Played ${m} min ago`;
+  const h = Math.round(m/60); if (h < 24) return `Played ${h} h ago`;
+  const d = Math.round(h/24); return d === 1 ? "Played yesterday" : `Played ${d} days ago`;
+}
+function hours(s){ return s >= 3600 ? ` · ${(s/3600).toFixed(s>=36000?0:1)} h total` : ""; }
+async function loadTiles(){
+  const box=$("#tiles"); if (!box.children.length) box.innerHTML=`<div class="empty" style="grid-column:1/-1">Loading...</div>`;
+  try{
+    const list = (await api("/api/instances")).sort((a,b)=> (b.last-a.last) || (b.default-a.default));
+    if (!list.length) return leavePlayMode();
+    rerender(box, list.map((i,n)=>`<button class="tile f" data-act="play" data-id="${esc(i.id)}" data-key="t-${esc(i.id)}" ${n===0?'data-autofocus="1"':""}>
+        ${i.icon && i.icon!=="default" ? icon("/icon/"+enc(i.icon)) : '<div class="ph">⛏</div>'}
+        <h3>${i.default?'<span class="star">★</span> ':""}${esc(i.name)}</h3>
+        <small>Minecraft ${esc(i.mc||"?")} · ${esc(loaderName(i.loader))}${i.worlds?` · ${i.worlds} world${i.worlds===1?"":"s"}`:""}</small>
+        <small>${ago(i.last)}${hours(i.played)}</small></button>`).join("")
+      + `<button class="tile add f" data-act="leavePlay" data-key="add"><div class="ph">＋</div><h3>Get more games</h3><small>Modpacks, or build your own</small></button>`);
+  }catch(e){ box.innerHTML=`<div class="empty err" style="grid-column:1/-1">${esc(e.message)}</div>`; }
+  if (!layers.length && !box.contains(document.activeElement)) focusFirst();
+}
+function leavePlayMode(to){
+  playMode=false; document.body.classList.remove("mode-play");
+  history.replaceState(null,"","/");
+  closeAll(); setTab(to || "library");
+}
+const SPLASHES=["Pick your world!","Now with controllers!","Sodium-powered!","Handheld edition!","Press A to dig!","Build your own pack!","Blocky!","100% gamepad!","Fits in your hands!","Punch a tree!"];
+$("#splash").textContent = SPLASHES[Math.floor(Math.random()*SPLASHES.length)];
+updateBars();
+if (playMode){ document.body.classList.add("mode-play"); setTab("play"); }
+else {
+  const qs = new URLSearchParams(location.search), t = qs.get("tab") || store.get("tab","browse");
+  setTab(TABS.includes(t) ? t : "browse");
+  if (qs.get("manage")) openManage(qs.get("manage"));
+}
+</script>
+</body>
+</html>

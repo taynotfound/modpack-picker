@@ -1,0 +1,35 @@
+#!/bin/bash
+# Minecraft shortcut for Steam Game Mode (or any launcher).
+# What it opens is set in Modpack Picker > Settings:
+#   auto    one game installed starts it, several show the "Choose a game" list
+#   list    always show the list
+#   last    start the game you played last
+#   starred start the game marked with a star
+# With no games installed it opens Modpack Picker so you can get one.
+# MINECRAFT_HANDHELD_DIRECT=1 is kept as an alias for "starred".
+
+# Steam's Flatpak runs added shortcuts inside its own sandbox, which has no
+# usable cert store or controller access. Hop out to the host when possible.
+if [ -f /.flatpak-info ] && command -v hrun >/dev/null; then
+    exec hrun "$0" "$@"
+fi
+source "${MODPACK_PICKER_DIR:-$HOME/.local/share/modpack-picker}/common.sh"
+
+mapfile -t all < <(list_instances)
+[ "${#all[@]}" -eq 0 ] && exec "$PICKER_BIN"
+
+mode=$(setting shortcut auto)
+[ "${MINECRAFT_HANDHELD_DIRECT:-0}" = 1 ] && mode=starred
+
+pick=""
+case "$mode" in
+    auto)    [ "${#all[@]}" -eq 1 ] && pick=${all[0]} ;;
+    last)    pick=$(last_played); [ -z "$pick" ] && pick=$(starred_instance) ;;
+    starred) pick=$(starred_instance) ;;
+esac
+
+[ -z "$pick" ] && exec "$PICKER_BIN" play
+
+launch_game "$pick"
+[ "$(setting after_game steam)" = list ] && exec "$PICKER_BIN" play
+exit 0
